@@ -22,10 +22,12 @@ dependencies = [
  "cortex-m-rt",
  "cortex-m-semihosting",
  "critical-section",
+ "display-interface-spi",
  "embedded-graphics",
  "embedded-hal 1.0.0",
  "nb 1.1.0",
  "panic-halt",
+ "pid",
  "ssd1306",
  "stm32f1xx-hal",
 ]
@@ -371,6 +373,15 @@ name = "panic-halt"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a513e167849a384b7f9b746e517604398518590a9142f4846a32e3c2a4de7b11"
+
+[[package]]
+name = "pid"
+version = "4.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d7c931ef9756cd5e3fa3d395bfe09df4dfa6f0612c6ca8f6b12927d17ca34e36"
+dependencies = [
+ "num-traits",
+]
 
 [[package]]
 name = "portable-atomic"
