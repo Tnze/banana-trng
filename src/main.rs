@@ -5,89 +5,83 @@
 //! Note: Without additional hardware, PC13 should not be used to drive an LED, see page 5.1.2 of
 //! the reference manual for an explanation. This is not an issue on the blue pill.
 
-// #![deny(unsafe_code)]
+#![deny(unsafe_code)]
+// #![deny(warnings)]
 #![no_main]
 #![no_std]
 
-use core::cell::{OnceCell, RefCell};
-
-use cortex_m_rt::entry;
-use cortex_m_semihosting::hprintln;
-use critical_section::Mutex;
 use panic_halt as _;
-use stm32f1xx_hal::{
-    adc,
-    gpio::{Edge, ExtiPin},
-    pac::{self, interrupt, TIM4},
-    prelude::*,
-    timer::{PwmChannel, Tim4NoRemap},
-};
 
 mod display;
 mod geiger;
 
-use geiger::Geiger;
+#[rtic::app(device = stm32f1xx_hal::pac)]
+mod app {
+    use cortex_m_semihosting::hprintln;
+    use stm32f1xx_hal::{
+        adc::Adc,
+        gpio::{Analog, ExtiPin, Pin},
+        pac::TIM4,
+        prelude::*,
+        timer::{PwmChannel, Tim4NoRemap},
+    };
 
-static GEIGER: Mutex<OnceCell<RefCell<Geiger<PwmChannel<TIM4, 3>, 'B', 8>>>> =
-    Mutex::new(OnceCell::new());
+    use crate::geiger::Geiger;
 
-#[interrupt]
-fn EXTI9_5() {
-    critical_section::with(|cs| {
-        if let Some(geiger) = GEIGER.borrow(cs).get() {
-            geiger.borrow_mut().interrupt();
-        }
-    });
-}
+    #[shared]
+    struct Shared {
+        geiger: Geiger<PwmChannel<TIM4, 3>, Pin<'B', 0, Analog>, Pin<'B', 8>>,
+    }
 
-#[entry]
-fn main() -> ! {
-    hprintln!("Hello, world!");
+    #[local]
+    struct Local {}
 
-    // Get access to the core peripherals from the cortex-m crate
-    let cp = cortex_m::Peripherals::take().unwrap();
-    // Get access to the device specific peripherals from the peripheral access crate
-    let mut dp = pac::Peripherals::take().unwrap();
+    #[init]
+    fn init(mut ctx: init::Context) -> (Shared, Local) {
+        hprintln!("hello, world");
+        let mut afio = ctx.device.AFIO.constrain();
+        let mut flash = ctx.device.FLASH.constrain();
+        let rcc = ctx.device.RCC.constrain();
+        let clocks = rcc.cfgr.freeze(&mut flash.acr);
+        let mut gpiob = ctx.device.GPIOB.split();
 
-    let mut flash = dp.FLASH.constrain();
-    let rcc = dp.RCC.constrain();
-    let clocks = rcc.cfgr.freeze(&mut flash.acr);
-    let mut afio = dp.AFIO.constrain();
-    let mut delay = cp.SYST.delay(&clocks);
-    let mut gpiob = dp.GPIOB.split();
+        // Init Geiger Tube driver
+        let mut geiger = {
+            let mut geiger_out = gpiob.pb8.into_floating_input(&mut gpiob.crh);
+            geiger_out.make_interrupt_source(&mut afio);
 
-    // Init Geiger Tube driver
-    {
-        // let mut geiger_boost_out = gpiob.pb9.into_push_pull_output(&mut gpiob.crh);
-        // geiger_boost_out.set_high();
-        let mut geiger_out = gpiob.pb8.into_floating_input(&mut gpiob.crh);
-        geiger_out.make_interrupt_source(&mut afio);
-        geiger_out.trigger_on_edge(&mut dp.EXTI, Edge::Falling);
-        geiger_out.enable_interrupt(&mut dp.EXTI);
-        let adc1 = adc::Adc::adc1(dp.ADC1, &clocks);
-        let geiger_boost_feedback = gpiob.pb0.into_analog(&mut gpiob.crl);
-        let geiger_boost_out = gpiob.pb9.into_alternate_push_pull(&mut gpiob.crh);
-        let mut geiger_boost_pwm = dp
-            .TIM4
-            .pwm_hz::<Tim4NoRemap, _, _>(geiger_boost_out, &mut afio.mapr, 5.kHz(), &clocks)
-            .split();
-        geiger_boost_pwm.enable();
-        let mut geiger = Geiger::new(geiger_boost_pwm, geiger_boost_feedback, geiger_out, adc1);
-        geiger.enable();
-        critical_section::with(|cs| {
-            if GEIGER.borrow(cs).set(RefCell::new(geiger)).is_err() {
-                panic!("Failed to init GEIGER");
-            }
-        });
-        unsafe {
-            pac::NVIC::unmask(pac::Interrupt::EXTI9_5);
+            let geiger_boost_feedback = gpiob.pb0.into_analog(&mut gpiob.crl);
+            let geiger_boost_out = gpiob.pb9.into_alternate_push_pull(&mut gpiob.crh);
+            let mut geiger_boost_pwm = ctx
+                .device
+                .TIM4
+                .pwm_hz::<Tim4NoRemap, _, _>(geiger_boost_out, &mut afio.mapr, 5.kHz(), &clocks)
+                .split();
+            geiger_boost_pwm.enable();
+
+            let adc1 = Adc::adc1(ctx.device.ADC1, &clocks);
+            Geiger::new(geiger_boost_pwm, geiger_boost_feedback, geiger_out, adc1)
+        };
+        geiger.enable(&mut ctx.device.EXTI);
+
+        (Shared { geiger }, Local {})
+    }
+
+    #[idle]
+    fn idle(_ctx: idle::Context) -> ! {
+        loop {
+            cortex_m::asm::wfi();
         }
     }
 
-    loop {
-        // cortex_m::asm::wfi();
-        critical_section::with(|cs| {
-            GEIGER.borrow(cs).get().unwrap().borrow_mut().print_status();
-        });
+    #[task(binds = EXTI9_5, shared = [geiger])]
+    fn geiger_signal(mut ctx: geiger_signal::Context) {
+        ctx.shared.geiger.lock(|x| x.interrupt_exti());
+    }
+
+    #[task(binds = ADC1_2, shared = [geiger])]
+    fn adc_eoc(mut ctx: adc_eoc::Context) {
+        // hprintln!("ADC1_2 triggered");
+        ctx.shared.geiger.lock(|x| x.interrupt_adc());
     }
 }
