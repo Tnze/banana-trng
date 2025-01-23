@@ -3,7 +3,6 @@
 #![no_main]
 #![no_std]
 
-use cortex_m_semihosting::hprintln;
 // use panic_halt as _;
 use panic_semihosting as _;
 
@@ -18,6 +17,7 @@ mod app {
         gpio::{Analog, ExtiPin, Pin},
         pac::TIM4,
         prelude::*,
+        rtc::Rtc,
         timer::{PwmChannel, Tim4NoRemap},
         usb::{Peripheral, UsbBus, UsbBusType},
     };
@@ -47,9 +47,12 @@ mod app {
             .sysclk(48.MHz())
             .pclk1(24.MHz())
             .freeze(&mut flash.acr);
-
+        let mut backup_domain = rcc.bkp.constrain(ctx.device.BKP, &mut ctx.device.PWR);
         let gpioa = ctx.device.GPIOA.split();
         let mut gpiob = ctx.device.GPIOB.split();
+
+        let mut geiger_timer = Rtc::new(ctx.device.RTC, &mut backup_domain);
+        geiger_timer.select_frequency(1.kHz());
 
         // Init USB
         let (usb_dev, serial) = {
@@ -68,19 +71,19 @@ mod app {
                 pin_dm,
                 pin_dp,
             };
+
             ctx.local.usb_bus.replace(UsbBus::new(usb));
-            let serial = usbd_serial::SerialPort::new(ctx.local.usb_bus.as_ref().unwrap());
-            let usb_dev = UsbDeviceBuilder::new(
-                ctx.local.usb_bus.as_ref().unwrap(),
-                UsbVidPid(0x16c0, 0x27dd),
-            )
-            .device_class(usbd_serial::USB_CLASS_CDC)
-            .strings(&[StringDescriptors::default()
-                .manufacturer("Fake Company")
-                .product("Serial port")
-                .serial_number("TEST")])
-            .unwrap()
-            .build();
+            let usb_bus = ctx.local.usb_bus.as_ref().unwrap();
+
+            let serial = usbd_serial::SerialPort::new(usb_bus);
+            let usb_dev = UsbDeviceBuilder::new(usb_bus, UsbVidPid(0x16c0, 0x27dd))
+                .device_class(usbd_serial::USB_CLASS_CDC)
+                .strings(&[StringDescriptors::default()
+                    .manufacturer("Tnze")
+                    .product("Banana RNG")
+                    .serial_number("TNZ1")])
+                .unwrap()
+                .build();
 
             (usb_dev, serial)
         };
@@ -101,7 +104,13 @@ mod app {
             geiger_boost_pwm.enable();
 
             let adc1 = Adc::adc1(ctx.device.ADC1, &clocks);
-            Geiger::new(geiger_boost_pwm, geiger_boost_feedback, geiger_out, adc1)
+            Geiger::new(
+                geiger_boost_pwm,
+                geiger_boost_feedback,
+                geiger_out,
+                geiger_timer,
+                adc1,
+            )
         };
         geiger.enable(&mut ctx.device.EXTI);
 
@@ -172,7 +181,7 @@ fn usb_poll<B: usb_device::bus::UsbBus>(
                 }
             }
 
-            // serial.write(&buf[0..count]).ok();
+            serial.write(&buf[0..count]).ok();
         }
         _ => {}
     }
