@@ -23,6 +23,7 @@ usb-device = "0.3.2"
 usbd-serial = "0.2.2"
 stm32-usbd = "0.7.0"
 panic-semihosting = "0.6.0"
+embedded-io = "0.6.1"
 
 [dependencies.stm32f1xx-hal]
 version = "0.10.0"

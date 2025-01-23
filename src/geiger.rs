@@ -65,11 +65,11 @@ where
         self.geiger_out.enable_interrupt(exti);
     }
 
-    pub(super) fn interrupt_exti(&mut self) {
+    pub(super) fn interrupt_exti(&mut self, w: &mut impl embedded_io::Write) {
         if self.geiger_out.check_interrupt() {
             self.geiger_out.clear_interrupt_pending_bit();
             self.count += 1;
-            hprintln!("Geiger Count: {}", self.count);
+            let _ = writeln!(w, "Geiger Count: {}", self.count);
         }
     }
 
@@ -88,12 +88,16 @@ where
             let next_duty = (max_duty * (1. - self.boost_duty)) as u16;
             self.boost_pwm.set_duty_cycle(next_duty).unwrap();
 
-            // hprintln!(
-            //     "Boost Voltage: {:.01}, PWM duty: {:.04}",
-            //     boost_volt,
-            //     self.boost_duty,
-            // );
+            hprintln!(
+                "Boost Voltage: {:.01}, PWM duty: {:.04}",
+                boost_volt,
+                self.boost_duty,
+            );
         }
         // else Err(nb::Error::WouldBlock)
+    }
+
+    pub(super) fn get_count(&self) -> u32 {
+        self.count
     }
 }

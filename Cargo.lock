@@ -25,6 +25,7 @@ dependencies = [
  "display-interface-spi",
  "embedded-graphics",
  "embedded-hal 1.0.0",
+ "embedded-io",
  "nb 1.1.0",
  "panic-halt",
  "panic-semihosting",
