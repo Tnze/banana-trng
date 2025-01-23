@@ -81,7 +81,6 @@ mod app {
 
     #[task(binds = ADC1_2, shared = [geiger])]
     fn adc_eoc(mut ctx: adc_eoc::Context) {
-        // hprintln!("ADC1_2 triggered");
         ctx.shared.geiger.lock(|x| x.interrupt_adc());
     }
 }

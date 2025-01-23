@@ -19,7 +19,6 @@ where
     OUT: ExtiPin,
 {
     boost_pwm: PWM,
-    #[allow(unused)]
     boost_fb: FB,
     geiger_out: OUT,
     boost_adc: Adc<ADC1>,
@@ -59,7 +58,7 @@ where
         let duty = (max * (1. - self.boost_duty)) as u16;
         self.boost_pwm.set_duty_cycle(duty).unwrap();
         self.boost_adc.enable_eoc_interrupt();
-        self.boost_adc.start_convert(FB::channel());
+        self.interrupt_adc();
 
         // self.geiger_out.make_interrupt_source(afio);
         self.geiger_out.trigger_on_edge(exti, Edge::Falling);
@@ -75,30 +74,26 @@ where
     }
 
     pub(super) fn interrupt_adc(&mut self) {
-        if !self.boost_adc.check_convert() {
-            return;
+        while let Result::<u16, _>::Ok(data) = self.boost_adc.read(&mut self.boost_fb) {
+            let boost_volt = {
+                let adc_volt = data as f32 * 1200_f32 / self.boost_adc.read_vref() as f32;
+                const R1: f32 = 4.7e6;
+                const R2: f32 = 10e3;
+                adc_volt * (R1 / R2) / 1000.
+            };
+
+            let next = self.boost_pid.next_control_output(boost_volt);
+            self.boost_duty = (self.boost_duty + next.output).clamp(0.0, 0.9);
+            let max_duty = self.boost_pwm.max_duty_cycle() as f32;
+            let next_duty = (max_duty * (1. - self.boost_duty)) as u16;
+            self.boost_pwm.set_duty_cycle(next_duty).unwrap();
+
+            // hprintln!(
+            //     "Boost Voltage: {:.01}, PWM duty: {:.04}",
+            //     boost_volt,
+            //     self.boost_duty,
+            // );
         }
-        let data: u16 = self.boost_adc.read_convert();
-        let boost_volt = {
-            let adc_volt = data as f32 * 1200_f32 / self.boost_adc.read_vref() as f32;
-            const R1: f32 = 4.7e6;
-            const R2: f32 = 10e3;
-            adc_volt * (R1 / R2) / 1000.
-        };
-
-        let next = self.boost_pid.next_control_output(boost_volt);
-        self.boost_duty = (self.boost_duty + next.output).clamp(0.0, 0.9);
-        let max_duty = self.boost_pwm.max_duty_cycle() as f32;
-        let next_duty = (max_duty * (1. - self.boost_duty)) as u16;
-        self.boost_pwm.set_duty_cycle(next_duty).unwrap();
-
-        hprintln!(
-            "Boost Voltage: {:.01}, PWM duty: {:.04}",
-            boost_volt,
-            self.boost_duty,
-        );
-
-        // Start next convert
-        self.boost_adc.start_convert(FB::channel());
+        // else Err(nb::Error::WouldBlock)
     }
 }
