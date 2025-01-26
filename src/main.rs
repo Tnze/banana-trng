@@ -6,13 +6,10 @@ use embassy_executor::Spawner;
 use embassy_stm32::{
     adc::Adc,
     bind_interrupts,
-    exti::ExtiInput,
-    gpio::Pull,
     peripherals::{self, ADC1},
     time::Hertz,
     Config,
 };
-use embassy_time::Instant;
 use {defmt_rtt as _, panic_probe as _};
 
 mod cli;
@@ -48,16 +45,12 @@ async fn main(spawner: Spawner) {
 
     info!("Hello World!");
     spawner.must_spawn(cli::run(p.USB, p.PA11, p.PA12));
-    spawner.must_spawn(geiger::run(Adc::new(p.ADC1), p.PB0, p.PB9, p.TIM4));
-
-    // Counting Geiger signal
-    let mut geiger_output = ExtiInput::new(p.PB8, p.EXTI8, Pull::None);
-    let mut last = Instant::now();
-    loop {
-        geiger_output.wait_for_falling_edge().await;
-        let now = Instant::now();
-        let dur = now.saturating_duration_since(last);
-        last = now;
-        info!("dur: {}", dur);
-    }
+    spawner.must_spawn(geiger::run(
+        Adc::new(p.ADC1),
+        p.PB0,
+        p.PB9,
+        p.TIM4,
+        p.PB8,
+        p.EXTI8,
+    ));
 }
