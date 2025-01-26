@@ -13,6 +13,7 @@ use embassy_stm32::{
 use {defmt_rtt as _, panic_probe as _};
 
 mod cli;
+mod display;
 mod geiger;
 
 bind_interrupts!(
@@ -52,5 +53,8 @@ async fn main(spawner: Spawner) {
         p.TIM4,
         p.PB8,
         p.EXTI8,
+    ));
+    spawner.must_spawn(display::run(
+        p.SPI1, p.PA5, p.PA7, p.DMA1_CH3, p.PA0, p.PA1, p.PA4,
     ));
 }

@@ -40,10 +40,18 @@ cortex-m = { version = "0.7.6", features = [
 cortex-m-rt = "0.7.0"
 panic-probe = { version = "0.3", features = ["print-defmt"] }
 heapless = { version = "0.8", default-features = false }
-nb = "1.1.0"
 static_cell = "2.0.0"
 pid = "4.0.0"
 ringbuffer = { version = "0.15.0", default-features = false }
+
+display-interface = "0.5.0"
+embedded-hal-bus = { version = "0.3.0", features = ["async"] }
+
+[dependencies.ssd1306]
+version = "0.9.0"
+git = "https://github.com/rust-embedded-community/ssd1306.git"
+branch = "master"
+features = ["async"]
 
 [profile.dev]
 opt-level = "s"
