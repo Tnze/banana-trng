@@ -11,6 +11,7 @@ use embassy_stm32::{
         simple_pwm::{PwmPin, SimplePwm},
     },
 };
+use embassy_sync::pubsub::DynPublisher;
 use embassy_time::{Duration, Instant, Ticker};
 use pid::Pid;
 use ringbuffer::{ConstGenericRingBuffer, RingBuffer};
@@ -27,10 +28,11 @@ pub(crate) async fn run(
     boost_pwm_tim: TIM4,
     geiger_output_pin: PB8,
     geiger_output_exti: EXTI8,
+    publisher: DynPublisher<'static, Message>,
 ) {
     join(
         run_boost(adc, boost_fb_pin, boost_pwm_pin, boost_pwm_tim),
-        run_count(geiger_output_pin, geiger_output_exti),
+        run_count(geiger_output_pin, geiger_output_exti, publisher),
     )
     .await;
 }
@@ -73,10 +75,6 @@ async fn run_boost(
         let max_duty = boost_pwm_channel.max_duty_cycle() as f32;
         boost_pwm_channel.set_duty_cycle((max_duty * (1. - boost_duty)) as u16);
 
-        // info!(
-        //     "boost {} {} {} {}",
-        //     v, vrefint_sample, sample_volt, boost_volt
-        // );
         ticker.next().await;
     }
 }
@@ -92,7 +90,11 @@ fn geiger_volt(sample_volt: f32) -> f32 {
     sample_volt * (R1 / R2)
 }
 
-async fn run_count(geiger_output_pin: PB8, geiger_output_exti: EXTI8) {
+async fn run_count(
+    geiger_output_pin: PB8,
+    geiger_output_exti: EXTI8,
+    publisher: DynPublisher<'static, Message>,
+) {
     let mut geiger_output = ExtiInput::new(geiger_output_pin, geiger_output_exti, Pull::None);
     let mut history = ConstGenericRingBuffer::<_, 100>::new();
     let mut last = Instant::now();
@@ -123,12 +125,25 @@ async fn run_count(geiger_output_pin: PB8, geiger_output_exti: EXTI8) {
                 value = (cps - GEIGER_BACKGROUND_LEVEL) / GEIGER_SENSITIVITY; // mR/h
             }
         }
+        let msg = Message {
+            dur: dur.as_millis(),
+            cpm: cps * 60.,
+            val: value * 8.76,
+        };
         info!(
-            "dur: {} ms, cpm: {}, val: {} µR/h = {} BED",
-            dur.as_millis(),
-            cps * 60.,
-            value * 1000.,
-            value * 8.76 / BED, // 1 mR ≈ 8.76 uSv
+            "dur: {} ms, cpm: {}, val: {} µSv/h = {} BED",
+            msg.dur,
+            msg.cpm,
+            msg.val,
+            msg.val / BED, // 1 mR ≈ 8.76 uSv
         );
+        publisher.publish_immediate(msg);
     }
+}
+
+#[derive(Clone)]
+pub(crate) struct Message {
+    pub(crate) dur: u64,
+    pub(crate) cpm: f32,
+    pub(crate) val: f32,
 }

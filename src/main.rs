@@ -10,6 +10,8 @@ use embassy_stm32::{
     time::Hertz,
     Config,
 };
+use embassy_sync::{blocking_mutex::raw::NoopRawMutex, pubsub::PubSubChannel};
+use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
 
 mod cli;
@@ -22,6 +24,9 @@ bind_interrupts!(
         USB_LP_CAN1_RX0 => embassy_stm32::usb::InterruptHandler<peripherals::USB>;
     }
 );
+
+static GEIGER_PUBLISHER: StaticCell<PubSubChannel<NoopRawMutex, geiger::Message, 5, 1, 1>> =
+    StaticCell::new();
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
@@ -45,6 +50,10 @@ async fn main(spawner: Spawner) {
     let p = embassy_stm32::init(config);
 
     info!("Hello World!");
+
+    let geiger_channel =
+        GEIGER_PUBLISHER.init(PubSubChannel::<NoopRawMutex, geiger::Message, 5, 1, 1>::new());
+
     spawner.must_spawn(cli::run(p.USB, p.PA11, p.PA12));
     spawner.must_spawn(geiger::run(
         Adc::new(p.ADC1),
@@ -53,8 +62,16 @@ async fn main(spawner: Spawner) {
         p.TIM4,
         p.PB8,
         p.EXTI8,
+        geiger_channel.dyn_publisher().unwrap(),
     ));
     spawner.must_spawn(display::run(
-        p.SPI1, p.PA5, p.PA7, p.DMA1_CH3, p.PA0, p.PA1, p.PA4,
+        p.SPI1,
+        p.PA5,
+        p.PA7,
+        p.DMA1_CH3,
+        p.PA0,
+        p.PA1,
+        p.PA4,
+        geiger_channel.dyn_subscriber().unwrap(),
     ));
 }
