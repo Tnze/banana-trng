@@ -1,7 +1,6 @@
 #![no_std]
 #![no_main]
 
-use defmt::*;
 use embassy_executor::Spawner;
 use embassy_stm32::{
     adc::Adc,
