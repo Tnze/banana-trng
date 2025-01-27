@@ -25,7 +25,7 @@ bind_interrupts!(
     }
 );
 
-static GEIGER_PUBLISHER: StaticCell<PubSubChannel<NoopRawMutex, geiger::Message, 5, 1, 1>> =
+static GEIGER_PUBLISHER: StaticCell<PubSubChannel<NoopRawMutex, geiger::count::Message, 5, 2, 1>> =
     StaticCell::new();
 
 #[embassy_executor::main]
@@ -49,12 +49,16 @@ async fn main(spawner: Spawner) {
     }
     let p = embassy_stm32::init(config);
 
-    info!("Hello World!");
-
     let geiger_channel =
-        GEIGER_PUBLISHER.init(PubSubChannel::<NoopRawMutex, geiger::Message, 5, 1, 1>::new());
+        GEIGER_PUBLISHER
+            .init(PubSubChannel::<NoopRawMutex, geiger::count::Message, 5, 2, 1>::new());
 
-    spawner.must_spawn(cli::run(p.USB, p.PA11, p.PA12));
+    spawner.must_spawn(cli::run(
+        p.USB,
+        p.PA11,
+        p.PA12,
+        geiger_channel.dyn_subscriber().unwrap(),
+    ));
     spawner.must_spawn(geiger::run(
         Adc::new(p.ADC1),
         p.PB0,

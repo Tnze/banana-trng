@@ -24,7 +24,7 @@ pub(crate) async fn run(
     rst: PA0,
     dc: PA1,
     cs: PA4,
-    mut geiger_subscriber: DynSubscriber<'static, geiger::Message>,
+    mut geiger_subscriber: DynSubscriber<'static, geiger::count::Message>,
 ) {
     let mut rst = gpio::Output::new(rst, gpio::Level::Low, gpio::Speed::Low);
     let dc = gpio::Output::new(dc, gpio::Level::Low, gpio::Speed::Low);
@@ -52,19 +52,15 @@ async fn try_display(
         DisplaySize128x64,
         TerminalModeAsync,
     >,
-    geiger_subscriber: &mut DynSubscriber<'static, geiger::Message>,
+    geiger_subscriber: &mut DynSubscriber<'static, geiger::count::Message>,
 ) -> Result<(), TerminalModeError> {
     display.init().await?;
     display.clear().await?;
+    display.write_str("hello, world").await?;
     let mut line = heapless::String::<64>::new();
     loop {
-        let geiger::Message { dur, cpm, val } = geiger_subscriber.next_message_pure().await;
-        if write!(
-            &mut line,
-            "Dur:{dur} ms\nCPM:{cpm}\nRD:{val:.5} uSv/h\n"
-        )
-        .is_ok()
-        {
+        let geiger::count::Message { dur, cpm, val } = geiger_subscriber.next_message_pure().await;
+        if write!(&mut line, "Dur:{dur} ms\nCPM:{cpm}\nRD:{val:.5} uSv/h\n").is_ok() {
             display.clear().await?;
             display.write_str(&line).await?;
             line.clear();
