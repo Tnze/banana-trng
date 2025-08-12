@@ -7,6 +7,7 @@ use embassy_stm32::{
     gpio::{Level, Output, Speed},
     peripherals::{PA11, PA12, USB},
     usb::{Driver, Instance},
+    Peri,
 };
 use embassy_sync::pubsub::DynSubscriber;
 use embassy_time::Timer;
@@ -19,14 +20,14 @@ use crate::{geiger, Irqs};
 
 #[embassy_executor::task]
 pub(crate) async fn run(
-    pusb: USB,
-    pa11: PA11,
-    mut pa12: PA12,
+    pusb: Peri<'static, USB>,
+    pa11: Peri<'static, PA11>,
+    mut pa12: Peri<'static, PA12>,
     geiger_subscriber: DynSubscriber<'static, geiger::count::Message>,
 ) {
     {
         // Reset USB for development only
-        let _dp = Output::new(&mut pa12, Level::Low, Speed::Low);
+        let _dp = Output::new(pa12.reborrow(), Level::Low, Speed::Low);
         Timer::after_millis(10).await;
     }
 

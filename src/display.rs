@@ -5,6 +5,7 @@ use embassy_stm32::{
     gpio,
     peripherals::{DMA1_CH3, PA0, PA1, PA4, PA5, PA7, SPI1},
     spi::Spi,
+    Peri,
 };
 use embassy_sync::pubsub::DynSubscriber;
 use ssd1306::{
@@ -17,13 +18,13 @@ use crate::geiger;
 
 #[embassy_executor::task]
 pub(crate) async fn run(
-    spi1: SPI1,
-    sck: PA5,
-    mosi: PA7,
-    dma1_ch3: DMA1_CH3,
-    rst: PA0,
-    dc: PA1,
-    cs: PA4,
+    spi1: Peri<'static, SPI1>,
+    sck: Peri<'static, PA5>,
+    mosi: Peri<'static, PA7>,
+    dma1_ch3: Peri<'static, DMA1_CH3>,
+    rst: Peri<'static, PA0>,
+    dc: Peri<'static, PA1>,
+    cs: Peri<'static, PA4>,
     mut geiger_subscriber: DynSubscriber<'static, geiger::count::Message>,
 ) {
     let mut rst = gpio::Output::new(rst, gpio::Level::Low, gpio::Speed::Low);

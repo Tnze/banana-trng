@@ -4,44 +4,57 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-embassy-stm32 = { version = "0.2.0", path = "../embassy/embassy-stm32", features = [
+defmt = "1.0.1"
+defmt-rtt = "1.0.0"
+cortex-m-rt = "0.7.0"
+panic-probe = { version = "1.0.0", features = ["print-defmt"] }
+heapless = { version = "0.8", default-features = false }
+static_cell = "2.1.1"
+pid = "4.0.0"
+ringbuffer = { version = "0.16.0", default-features = false }
+
+display-interface = "0.5.0"
+embedded-hal-bus = { version = "0.3.0", features = ["async"] }
+
+[dependencies.cortex-m]
+version = "0.7.6"
+features = ["inline-asm", "critical-section-single-core"]
+
+[dependencies.embassy-sync]
+version = "0.7.0"
+path = "../embassy/embassy-sync"
+
+[dependencies.embassy-usb]
+version = "0.5.0"
+path = "../embassy/embassy-usb"
+
+[dependencies.embassy-futures]
+version = "0.1.0"
+path = "../embassy/embassy-futures"
+
+[dependencies.embassy-stm32]
+version = "0.2.0"
+path = "../embassy/embassy-stm32"
+features = [
     "stm32f103cb",
     "unstable-pac",
     "memory-x",
     "time-driver-tim3",
     "exti",
-] }
-embassy-sync = { version = "0.6.2", path = "../embassy/embassy-sync" }
-embassy-executor = { version = "0.7.0", path = "../embassy/embassy-executor", features = [
-    "arch-cortex-m",
-    "executor-thread",
-] }
-embassy-time = { version = "0.4.0", path = "../embassy/embassy-time", features = [
-    "defmt-timestamp-uptime",
-    "tick-hz-32_768",
-] }
-embassy-usb = { version = "0.4.0", path = "../embassy/embassy-usb" }
-embassy-futures = { version = "0.1.0", path = "../embassy/embassy-futures" }
+]
 
-defmt = "0.3"
-defmt-rtt = "0.4"
+[dependencies.embassy-executor]
+version = "0.8.0"
+path = "../embassy/embassy-executor"
+features = ["arch-cortex-m", "executor-thread"]
 
-cortex-m = { version = "0.7.6", features = [
-    "inline-asm",
-    "critical-section-single-core",
-] }
-cortex-m-rt = "0.7.0"
-panic-probe = { version = "0.3", features = ["print-defmt"] }
-heapless = { version = "0.8", default-features = false }
-static_cell = "2.0.0"
-pid = "4.0.0"
-ringbuffer = { version = "0.15.0", default-features = false }
-
-display-interface = "0.5.0"
-embedded-hal-bus = { version = "0.3.0", features = ["async"] }
+[dependencies.embassy-time]
+version = "0.4.0"
+path = "../embassy/embassy-time"
+features = ["defmt-timestamp-uptime", "tick-hz-32_768"]
 
 [dependencies.ssd1306]
-version = "0.9.0"
+version = "0.10.0"
 git = "https://github.com/rust-embedded-community/ssd1306.git"
 branch = "master"
 features = ["async"]

@@ -10,6 +10,7 @@ use embassy_stm32::{
         low_level::CountingMode,
         simple_pwm::{PwmPin, SimplePwm},
     },
+    Peri,
 };
 use embassy_sync::pubsub::DynPublisher;
 use embassy_time::{Duration, Instant, Ticker};
@@ -23,11 +24,11 @@ const BED: f32 = 0.0778; // 香蕉等效剂量 1 Banana Equivalent Dose = 0.0778
 #[embassy_executor::task]
 pub(crate) async fn run(
     adc: Adc<'static, ADC1>,
-    boost_fb_pin: PB0,
-    boost_pwm_pin: PB9,
-    boost_pwm_tim: TIM4,
-    geiger_output_pin: PB8,
-    geiger_output_exti: EXTI8,
+    boost_fb_pin: Peri<'static, PB0>,
+    boost_pwm_pin: Peri<'static, PB9>,
+    boost_pwm_tim: Peri<'static, TIM4>,
+    geiger_output_pin: Peri<'static, PB8>,
+    geiger_output_exti: Peri<'static, EXTI8>,
     publisher: DynPublisher<'static, count::Message>,
 ) {
     join(
@@ -42,16 +43,16 @@ mod boost {
 
     pub(super) async fn run(
         mut adc: Adc<'static, ADC1>,
-        mut boost_fb_pin: PB0,
-        boost_pwm_pin: PB9,
-        boost_pwm_tim: TIM4,
+        mut boost_fb_pin: Peri<'static, PB0>,
+        boost_pwm_pin: Peri<'static, PB9>,
+        boost_pwm_tim: Peri<'static, TIM4>,
     ) {
         let mut boost_pwm = SimplePwm::new(
             boost_pwm_tim,
             None,
             None,
             None,
-            Some(PwmPin::new_ch4(boost_pwm_pin, OutputType::PushPull)),
+            Some(PwmPin::new(boost_pwm_pin, OutputType::PushPull)),
             Hertz::khz(5),
             CountingMode::EdgeAlignedUp,
         );
@@ -106,8 +107,8 @@ pub(crate) mod count {
     }
 
     pub(super) async fn run(
-        geiger_output_pin: PB8,
-        geiger_output_exti: EXTI8,
+        geiger_output_pin: Peri<'static, PB8>,
+        geiger_output_exti: Peri<'static, EXTI8>,
         publisher: DynPublisher<'static, Message>,
     ) {
         let mut geiger_output = ExtiInput::new(geiger_output_pin, geiger_output_exti, Pull::None);
@@ -128,7 +129,7 @@ pub(crate) mod count {
             {
                 history.dequeue();
             }
-            history.push(now);
+            history.enqueue(now);
 
             let mut cps = f32::NAN;
             let mut value = f32::NAN;
