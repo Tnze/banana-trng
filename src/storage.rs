@@ -6,7 +6,7 @@ use sequential_storage::{
 };
 
 pub use sequential_storage::cache::*;
-const RANGE: core::ops::Range<u32> = 0x0001E000..0x00020000;
+const RANGE: core::ops::Range<u32> = 0x0001F000..0x00020000;
 
 mod wrapper {
     use embassy_stm32::flash::{
