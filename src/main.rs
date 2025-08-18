@@ -5,26 +5,35 @@ use embassy_executor::Spawner;
 use embassy_stm32::{
     adc::Adc,
     bind_interrupts,
-    peripherals::{self, ADC1},
+    peripherals::{ADC1, USB},
     time::Hertz,
     Config,
 };
-use embassy_sync::{blocking_mutex::raw::NoopRawMutex, pubsub::PubSubChannel};
+use embassy_sync::{
+    blocking_mutex::raw::{NoopRawMutex, ThreadModeRawMutex},
+    mutex::Mutex,
+    pubsub::PubSubChannel,
+};
+use sequential_storage::cache::NoCache;
 use static_cell::StaticCell;
+
 use {defmt_rtt as _, panic_probe as _};
 
 mod cli;
 mod display;
 mod geiger;
+mod storage;
 
 bind_interrupts!(
     struct Irqs {
         ADC1_2 => embassy_stm32::adc::InterruptHandler<ADC1>;
-        USB_LP_CAN1_RX0 => embassy_stm32::usb::InterruptHandler<peripherals::USB>;
+        USB_LP_CAN1_RX0 => embassy_stm32::usb::InterruptHandler<USB>;
     }
 );
 
 static GEIGER_PUBLISHER: StaticCell<PubSubChannel<NoopRawMutex, geiger::count::Message, 5, 2, 1>> =
+    StaticCell::new();
+static STORAGE: StaticCell<Mutex<ThreadModeRawMutex, storage::Storage<NoCache, 32>>> =
     StaticCell::new();
 
 #[embassy_executor::main]
@@ -48,6 +57,10 @@ async fn main(spawner: Spawner) {
     }
     let p = embassy_stm32::init(config);
 
+    let storage = storage::Storage::new(p.FLASH, storage::NoCache::new());
+    let storage = STORAGE.init(Mutex::new(storage));
+    // let result = storage.read::<_, u32>(b"count").await;
+
     let geiger_channel =
         GEIGER_PUBLISHER
             .init(PubSubChannel::<NoopRawMutex, geiger::count::Message, 5, 2, 1>::new());
@@ -66,6 +79,7 @@ async fn main(spawner: Spawner) {
         p.PB8,
         p.EXTI8,
         geiger_channel.dyn_publisher().unwrap(),
+        storage,
     ));
     spawner.must_spawn(display::run(
         p.SPI1,

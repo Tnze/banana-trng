@@ -1,4 +1,4 @@
-use defmt::*;
+use defmt::info;
 use embassy_futures::join::join;
 use embassy_stm32::{
     adc::{Adc, SampleTime, VREF_INT},
@@ -12,10 +12,15 @@ use embassy_stm32::{
     },
     Peri,
 };
-use embassy_sync::pubsub::DynPublisher;
+use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, mutex::Mutex, pubsub::DynPublisher};
 use embassy_time::{Duration, Instant, Ticker};
 use pid::Pid;
 use ringbuffer::{ConstGenericRingBuffer, RingBuffer};
+use sequential_storage::cache::NoCache;
+
+use crate::storage;
+
+type Storage = Mutex<ThreadModeRawMutex, storage::Storage<NoCache, 32>>;
 
 const GEIGER_BACKGROUND_LEVEL: f32 = 25. / 60.; // 盖革管本底脉冲数 pulses/sec
 const GEIGER_SENSITIVITY: f32 = 44.; // 盖革管灵敏度 CPS at 1 mR/h Co-60
@@ -30,10 +35,11 @@ pub(crate) async fn run(
     geiger_output_pin: Peri<'static, PB8>,
     geiger_output_exti: Peri<'static, EXTI8>,
     publisher: DynPublisher<'static, count::Message>,
+    storage: &'static Storage,
 ) {
     join(
         boost::run(adc, boost_fb_pin, boost_pwm_pin, boost_pwm_tim),
-        count::run(geiger_output_pin, geiger_output_exti, publisher),
+        count::run(geiger_output_pin, geiger_output_exti, publisher, storage),
     )
     .await;
 }
@@ -97,6 +103,8 @@ mod boost {
 }
 
 pub(crate) mod count {
+    use defmt::error;
+
     use super::*;
 
     #[derive(Clone)]
@@ -110,10 +118,18 @@ pub(crate) mod count {
         geiger_output_pin: Peri<'static, PB8>,
         geiger_output_exti: Peri<'static, EXTI8>,
         publisher: DynPublisher<'static, Message>,
+        storage: &'static Storage,
     ) {
         let mut geiger_output = ExtiInput::new(geiger_output_pin, geiger_output_exti, Pull::None);
         let mut history = ConstGenericRingBuffer::<_, 100>::new();
         let mut last = Instant::now();
+        let mut count = storage
+            .lock()
+            .await
+            .read(b"count")
+            .await
+            .unwrap_or(None)
+            .unwrap_or(0u64);
         loop {
             geiger_output.wait_for_falling_edge().await;
             let now = Instant::now();
@@ -148,13 +164,19 @@ pub(crate) mod count {
                 val: value * 8.76,
             };
             info!(
-                "dur: {} ms, cpm: {}, val: {} µSv/h = {} BED",
+                "dur: {} ms, count: {}, cpm: {}, val: {} µSv/h = {} BED",
                 msg.dur,
+                count,
                 msg.cpm,
                 msg.val,
                 msg.val / BED, // 1 mR ≈ 8.76 uSv
             );
             publisher.publish_immediate(msg);
+
+            count += 1;
+            if let Err(e) = storage.lock().await.write(b"count", &count).await {
+                error!("Failed to store count: {:?}", e);
+            }
         }
     }
 }

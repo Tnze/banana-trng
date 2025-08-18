@@ -15,13 +15,15 @@ ringbuffer = { version = "0.16.0", default-features = false }
 
 display-interface = "0.5.0"
 embedded-hal-bus = { version = "0.3.0", features = ["async"] }
+sequential-storage = { version = "5.0.0", features = ["defmt-03"] }
+embedded-storage-async = "=0.4.1"
 
 [dependencies.cortex-m]
 version = "0.7.6"
 features = ["inline-asm", "critical-section-single-core"]
 
 [dependencies.embassy-sync]
-version = "0.7.0"
+version = "0.7.1"
 path = "../embassy/embassy-sync"
 
 [dependencies.embassy-usb]
@@ -33,12 +35,12 @@ version = "0.1.0"
 path = "../embassy/embassy-futures"
 
 [dependencies.embassy-stm32]
-version = "0.2.0"
+version = "0.3.0"
 path = "../embassy/embassy-stm32"
 features = [
     "stm32f103cb",
     "unstable-pac",
-    "memory-x",
+    # "memory-x",
     "time-driver-tim3",
     "exti",
 ]

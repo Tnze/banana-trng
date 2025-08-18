@@ -60,10 +60,12 @@ dependencies = [
  "embassy-time",
  "embassy-usb",
  "embedded-hal-bus",
+ "embedded-storage-async",
  "heapless",
  "panic-probe",
  "pid",
  "ringbuffer",
+ "sequential-storage",
  "ssd1306",
  "static_cell",
 ]
@@ -367,7 +369,7 @@ dependencies = [
 
 [[package]]
 name = "embassy-stm32"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "aligned",
  "bit_field",
@@ -414,7 +416,7 @@ dependencies = [
 
 [[package]]
 name = "embassy-sync"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "cfg-if",
  "critical-section",
@@ -885,6 +887,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
 
 [[package]]
+name = "sequential-storage"
+version = "5.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56a82250c179995d4aba246dfbebc817c1a093816dbb36c3a458d9074ed77968"
+dependencies = [
+ "defmt 0.3.100",
+ "embedded-storage-async",
+]
+
+[[package]]
 name = "serde"
 version = "1.0.219"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -961,7 +973,8 @@ dependencies = [
 [[package]]
 name = "stm32-metapac"
 version = "17.0.0"
-source = "git+https://github.com/embassy-rs/stm32-data-generated?tag=stm32-data-9941f338734a2e6c1652267f64b13f7b35d8c9db#d40bc4d4e8710f9be8a7fd0d793cbd3132b932fd"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5b44329ff285800f88ccc1666218808c6ed0e6dc570383b5f661caadb8101133"
 dependencies = [
  "cortex-m",
  "cortex-m-rt",
