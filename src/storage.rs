@@ -2,11 +2,12 @@ use embassy_stm32::{flash::Flash, peripherals::FLASH, Peri};
 use sequential_storage::{
     cache::KeyCacheImpl,
     map::{self, Key, Value},
-    Error,
 };
 
 pub use sequential_storage::cache::*;
 const RANGE: core::ops::Range<u32> = 0x0001F000..0x00020000;
+
+pub type Error = sequential_storage::Error<embassy_stm32::flash::Error>;
 
 mod wrapper {
     use embassy_stm32::flash::{
@@ -60,10 +61,7 @@ impl<C, const N: usize> Storage<C, N> {
         }
     }
 
-    pub async fn read<'a, K, V>(
-        &'a mut self,
-        key: &K,
-    ) -> Result<Option<V>, Error<embassy_stm32::flash::Error>>
+    pub async fn read<'a, K, V>(&'a mut self, key: &K) -> Result<Option<V>, Error>
     where
         K: Key,
         V: Value<'a>,
@@ -79,11 +77,7 @@ impl<C, const N: usize> Storage<C, N> {
         .await
     }
 
-    pub async fn write<'a, K, V>(
-        &mut self,
-        key: &K,
-        value: &V,
-    ) -> Result<(), Error<embassy_stm32::flash::Error>>
+    pub async fn write<'a, K, V>(&'a mut self, key: &K, value: &V) -> Result<(), Error>
     where
         K: Key,
         V: Value<'a>,
@@ -98,5 +92,27 @@ impl<C, const N: usize> Storage<C, N> {
             value,
         )
         .await
+    }
+
+    pub async fn read_or_default<'a, 'b, K, V>(
+        &'a mut self,
+        key: &K,
+        default: V,
+    ) -> Result<V, Error>
+    where
+        'a: 'b,
+        K: Key,
+        V: Value<'b>,
+        C: KeyCacheImpl<K>,
+    {
+        let value = map::fetch_item(
+            &mut self.flash,
+            RANGE,
+            &mut self.cache,
+            &mut self.buffer,
+            key,
+        )
+        .await?;
+        Ok(value.unwrap_or(default))
     }
 }
