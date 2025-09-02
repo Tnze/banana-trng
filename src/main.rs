@@ -5,8 +5,9 @@ use embassy_executor::Spawner;
 use embassy_stm32::{
     adc::Adc,
     bind_interrupts,
-    peripherals::{ADC1, USB},
+    peripherals::{ADC1, USART3, USB},
     time::Hertz,
+    usart::Uart,
     Config,
 };
 use embassy_sync::{
@@ -19,15 +20,16 @@ use static_cell::StaticCell;
 
 use {defmt_rtt as _, panic_probe as _};
 
-mod cli;
 mod display;
 mod geiger;
 mod storage;
+mod usb;
 
 bind_interrupts!(
     struct Irqs {
         ADC1_2 => embassy_stm32::adc::InterruptHandler<ADC1>;
         USB_LP_CAN1_RX0 => embassy_stm32::usb::InterruptHandler<USB>;
+        USART3 => embassy_stm32::usart::InterruptHandler<USART3>;
     }
 );
 
@@ -65,10 +67,22 @@ async fn main(spawner: Spawner) {
         GEIGER_PUBLISHER
             .init(PubSubChannel::<NoopRawMutex, geiger::count::Message, 5, 2, 1>::new());
 
-    spawner.must_spawn(cli::run(
+    let debug_uart = Uart::new(
+        p.USART3,
+        p.PB11,
+        p.PB10,
+        Irqs,
+        p.DMA1_CH2,
+        p.DMA1_CH3,
+        Default::default(),
+    )
+    .unwrap();
+
+    spawner.must_spawn(usb::run(
         p.USB,
         p.PA11,
         p.PA12,
+        debug_uart,
         geiger_channel.dyn_subscriber().unwrap(),
     ));
     spawner.must_spawn(geiger::run(
@@ -81,14 +95,14 @@ async fn main(spawner: Spawner) {
         geiger_channel.dyn_publisher().unwrap(),
         storage,
     ));
-    spawner.must_spawn(display::run(
-        p.SPI1,
-        p.PA5,
-        p.PA7,
-        p.DMA1_CH3,
-        p.PA0,
-        p.PA1,
-        p.PA4,
-        geiger_channel.dyn_subscriber().unwrap(),
-    ));
+    // spawner.must_spawn(display::run(
+    //     p.SPI1,
+    //     p.PA5,
+    //     p.PA7,
+    //     p.DMA1_CH3,
+    //     p.PA0,
+    //     p.PA1,
+    //     p.PA4,
+    //     geiger_channel.dyn_subscriber().unwrap(),
+    // ));
 }

@@ -105,14 +105,6 @@ impl<C, const N: usize> Storage<C, N> {
         V: Value<'b>,
         C: KeyCacheImpl<K>,
     {
-        let value = map::fetch_item(
-            &mut self.flash,
-            RANGE,
-            &mut self.cache,
-            &mut self.buffer,
-            key,
-        )
-        .await?;
-        Ok(value.unwrap_or(default))
+        Ok(self.read(key).await?.unwrap_or(default))
     }
 }
