@@ -47,6 +47,7 @@ pub(crate) async fn run(
     }
 }
 
+#[cfg_attr(feature = "uart3_cdc", allow(unused))]
 async fn try_display(
     display: &mut Ssd1306Async<
         impl AsyncWriteOnlyDataCommand,

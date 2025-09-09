@@ -5,7 +5,7 @@ use embassy_executor::Spawner;
 use embassy_stm32::{
     adc::Adc,
     bind_interrupts,
-    peripherals::{ADC1, USART3, USB},
+    peripherals::{ADC1, USART1, USART3, USB},
     time::Hertz,
     usart::Uart,
     Config,
@@ -29,6 +29,7 @@ bind_interrupts!(
     struct Irqs {
         ADC1_2 => embassy_stm32::adc::InterruptHandler<ADC1>;
         USB_LP_CAN1_RX0 => embassy_stm32::usb::InterruptHandler<USB>;
+        USART1 => embassy_stm32::usart::InterruptHandler<USART1>;
         USART3 => embassy_stm32::usart::InterruptHandler<USART3>;
     }
 );
@@ -61,12 +62,24 @@ async fn main(spawner: Spawner) {
 
     let storage = storage::Storage::new(p.FLASH, storage::NoCache::new());
     let storage = STORAGE.init(Mutex::new(storage));
-    // let result = storage.read::<_, u32>(b"count").await;
 
     let geiger_channel =
         GEIGER_PUBLISHER
             .init(PubSubChannel::<NoopRawMutex, geiger::count::Message, 5, 2, 1>::new());
 
+    #[cfg(not(feature = "uart3_cdc"))]
+    let debug_uart = Uart::new(
+        p.USART1,
+        p.PA10,
+        p.PA9,
+        Irqs,
+        p.DMA1_CH4,
+        p.DMA1_CH5,
+        Default::default(),
+    )
+    .unwrap();
+
+    #[cfg(feature = "uart3_cdc")]
     let debug_uart = Uart::new(
         p.USART3,
         p.PB11,
@@ -95,14 +108,15 @@ async fn main(spawner: Spawner) {
         geiger_channel.dyn_publisher().unwrap(),
         storage,
     ));
-    // spawner.must_spawn(display::run(
-    //     p.SPI1,
-    //     p.PA5,
-    //     p.PA7,
-    //     p.DMA1_CH3,
-    //     p.PA0,
-    //     p.PA1,
-    //     p.PA4,
-    //     geiger_channel.dyn_subscriber().unwrap(),
-    // ));
+    #[cfg(not(feature = "uart3_cdc"))]
+    spawner.must_spawn(display::run(
+        p.SPI1,
+        p.PA5,
+        p.PA7,
+        p.DMA1_CH3,
+        p.PA0,
+        p.PA1,
+        p.PA4,
+        geiger_channel.dyn_subscriber().unwrap(),
+    ));
 }

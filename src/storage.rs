@@ -94,6 +94,7 @@ impl<C, const N: usize> Storage<C, N> {
         .await
     }
 
+    #[allow(unused)]
     pub async fn read_or_default<'a, 'b, K, V>(
         &'a mut self,
         key: &K,
