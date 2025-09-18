@@ -91,32 +91,41 @@ async fn main(spawner: Spawner) {
     )
     .unwrap();
 
-    spawner.must_spawn(usb::run(
-        p.USB,
-        p.PA11,
-        p.PA12,
-        debug_uart,
-        geiger_channel.dyn_subscriber().unwrap(),
-    ));
-    spawner.must_spawn(geiger::run(
-        Adc::new(p.ADC1),
-        p.PB0,
-        p.PB9,
-        p.TIM4,
-        p.PB8,
-        p.EXTI8,
-        geiger_channel.dyn_publisher().unwrap(),
-        storage,
-    ));
+    spawner.spawn(
+        usb::run(
+            p.USB,
+            p.PA11,
+            p.PA12,
+            debug_uart,
+            geiger_channel.dyn_subscriber().unwrap(),
+        )
+        .expect("Failed to spawn debug_uart task"),
+    );
+    spawner.spawn(
+        geiger::run(
+            Adc::new(p.ADC1),
+            p.PB0,
+            p.PB9,
+            p.TIM4,
+            p.PB8,
+            p.EXTI8,
+            geiger_channel.dyn_publisher().unwrap(),
+            storage,
+        )
+        .expect("Failed to spawn geiger driver task"),
+    );
     #[cfg(not(feature = "uart3_cdc"))]
-    spawner.must_spawn(display::run(
-        p.SPI1,
-        p.PA5,
-        p.PA7,
-        p.DMA1_CH3,
-        p.PA0,
-        p.PA1,
-        p.PA4,
-        geiger_channel.dyn_subscriber().unwrap(),
-    ));
+    spawner.spawn(
+        display::run(
+            p.SPI1,
+            p.PA5,
+            p.PA7,
+            p.DMA1_CH3,
+            p.PA0,
+            p.PA1,
+            p.PA4,
+            geiger_channel.dyn_subscriber().unwrap(),
+        )
+        .expect("Failed to spawn display driver task"),
+    );
 }
